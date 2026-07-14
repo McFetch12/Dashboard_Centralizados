@@ -350,7 +350,8 @@ function toast(msg, kind){
 }
 
 async function loadData(){
-  const r = await fetch(STATIC_MODE ? 'data.json' : '/api/data'); STATE.data = await r.json();
+  // En la versión publicada: cache-buster para no ver datos viejos del CDN de Pages
+  const r = await fetch(STATIC_MODE ? ('data.json?t='+Date.now()) : '/api/data'); STATE.data = await r.json();
   if(STATE.data.config && STATE.data.config.capacidad_dia) $('#cap').value = STATE.data.config.capacidad_dia;
   if(STATIC_MODE && $('#pub-ts')) $('#pub-ts').textContent = fmtTs(STATE.data.publicado);
   if(!STATIC_MODE && $('#ts-pub') && STATE.data.publicacion && STATE.data.publicacion.publicado)
