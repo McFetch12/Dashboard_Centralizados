@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Monitor de Picking — Centralizado</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0a0b; --surface:#141416; --surface-2:#1b1b1f; --surface-3:#212126;
+    --line:#2b2b31; --line-soft:#232328; --grid:rgba(255,214,10,.42);
+    --ink:#f6f6f7; --muted:#9a9aa4; --faint:#62626c;
+    --accent:#ffd60a; --accent-d:#e6c000; --accent-dim:rgba(255,214,10,.12); --on-accent:#0a0a0b;
+    --ok:#37d39b; --ok-dim:rgba(55,211,155,.14);
+    --warn:#ff5d5d; --warn-dim:rgba(255,93,93,.13);
+    --radius:14px;
+    --shadow:0 2px 10px rgba(0,0,0,.5);
+    --shadow-lg:0 24px 70px rgba(0,0,0,.7);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{font-family:"Space Grotesk","Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;
+    color:var(--ink);background:var(--bg);font-size:14px;line-height:1.45;
+    -webkit-font-smoothing:antialiased}
+  .hidden{display:none !important}
+  ::selection{background:var(--accent);color:var(--on-accent)}
+
+  /* ---------------- Topbar ---------------- */
+  .topbar{position:sticky;top:0;z-index:40;background:#0c0c0e;border-bottom:1px solid var(--line)}
+  .topbar-in{display:flex;align-items:center;gap:22px;flex-wrap:wrap;
+    padding:14px 28px;max-width:1860px;margin:0 auto}
+  .brand{display:flex;align-items:center;gap:13px;min-width:0}
+  .logo{width:42px;height:42px;border-radius:11px;background:var(--accent);color:var(--on-accent);
+    display:grid;place-items:center;font-weight:700;font-size:17px;letter-spacing:.5px;flex:none}
+  .brand h1{font-size:16px;margin:0;font-weight:600;letter-spacing:-.2px;color:var(--ink)}
+  .brand p{margin:2px 0 0;font-size:12px;color:var(--muted)}
+  .brand .amar{color:var(--accent)}
+  .controls{margin-left:auto;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  .wksel{display:inline-flex;background:var(--surface-2);border:1px solid var(--line);
+    border-radius:11px;padding:3px;gap:3px}
+  .wksel button{border:none;background:transparent;cursor:pointer;font-size:12.5px;font-weight:700;
+    color:var(--muted);padding:8px 15px;border-radius:8px;font-family:inherit;transition:.12s}
+  .wksel button:hover{color:var(--ink)}
+  .wksel button.on{background:var(--accent);color:var(--on-accent)}
+  .cap{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);text-transform:uppercase;
+    letter-spacing:.5px;font-weight:500}
+  .cap input{width:54px;border:1px solid var(--line);border-radius:9px;padding:7px 8px;
+    font-weight:700;text-align:center;color:var(--ink);font-size:14px;background:var(--surface-2);
+    font-family:inherit}
+  .cap input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim)}
+  .rgroup{display:flex;align-items:flex-end;gap:10px}
+  .rbtn{display:flex;flex-direction:column;align-items:stretch;gap:4px}
+  .rbtn button{border:1px solid var(--line);cursor:pointer;border-radius:10px;padding:9px 14px;
+    font-weight:600;font-size:12.5px;background:var(--surface-2);color:var(--ink);font-family:inherit;
+    display:flex;align-items:center;gap:8px;transition:.15s}
+  .rbtn button:hover{border-color:#3a3a42;background:var(--surface-3)}
+  .rbtn button:active{transform:translateY(1px)}
+  .rbtn button[disabled]{opacity:.6;cursor:progress}
+  .rbtn.prim button{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+  .rbtn.prim button:hover{background:var(--accent-d)}
+  .rbtn .ts{font-size:10px;color:var(--faint);text-align:center;letter-spacing:.2px}
+  .led{width:7px;height:7px;border-radius:50%;flex:none}
+  .led.car{background:var(--accent)} .led.sap{background:var(--ok)} .led.oms{background:var(--faint)}
+  .rbtn.prim .led.car{background:var(--on-accent)}
+  .spin{width:13px;height:13px;border:2px solid rgba(255,255,255,.25);border-top-color:var(--accent);
+    border-radius:50%;animation:sp .7s linear infinite}
+  .rbtn.prim .spin{border-color:rgba(10,10,11,.35);border-top-color:var(--on-accent)}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .led.pub{background:#7c9cff}
+  .pubinfo{font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:10px;
+    padding:9px 14px;background:var(--surface-2);letter-spacing:.3px}
+  .pubinfo b{color:var(--ink);font-weight:600}
+
+  /* ---------------- Layout: semanas apiladas a todo el ancho ---------------- */
+  main{max-width:1860px;margin:0 auto;padding:24px 28px 80px}
+  .weeks{display:flex;flex-direction:column;gap:26px}
+  .placeholder{background:var(--surface);border:1px dashed var(--line);border-radius:var(--radius);
+    min-height:240px;display:flex;align-items:center;justify-content:center;text-align:center;
+    color:var(--faint);font-size:13px;letter-spacing:.3px}
+  .week{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:var(--shadow);overflow:hidden;width:100%}
+  .week-head{display:flex;align-items:center;gap:14px;padding:16px 20px 14px;background:var(--surface-2);
+    border-bottom:1px solid var(--line)}
+  .week-title{font-size:16px;font-weight:600;letter-spacing:-.2px;display:flex;align-items:center;gap:10px}
+  .week-title .num{color:var(--accent);font-weight:700}
+  .badge-cur{background:var(--accent);color:var(--on-accent);font-size:10px;font-weight:700;
+    padding:3px 9px;border-radius:20px;letter-spacing:.6px}
+  .week-kpi{margin-left:auto;text-align:right;line-height:1.25}
+  .week-kpi .b{font-size:15px;font-weight:700}
+  .week-kpi .b .hl{color:var(--accent)}
+  .week-kpi .s{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+
+  /* ----- grilla de días (7 a todo el ancho) ----- */
+  .grid{display:grid;grid-template-columns:repeat(7,1fr);border-top:1px solid var(--grid)}
+  .day{border-right:1px solid var(--grid);border-bottom:1px solid var(--grid);
+    min-height:138px;display:flex;flex-direction:column;transition:background .12s}
+  .day:nth-child(7n){border-right:none}
+  .day.has{cursor:pointer}
+  .day.has:hover{background:var(--surface-2)}
+  .day.today{background:rgba(255,214,10,.05)}
+  .day.today.has:hover{background:rgba(255,214,10,.08)}
+  .dh{display:flex;align-items:baseline;gap:6px;padding:9px 12px 5px}
+  .dh .d{font-size:15px;font-weight:700;color:var(--ink)}
+  .dh .n{font-size:11px;color:var(--ink);font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+  .day.weekend .dh .d{color:var(--ink)}
+  .dh .today-tag{margin-left:auto;font-size:9px;font-weight:700;color:var(--on-accent);
+    background:var(--accent);padding:1px 7px;border-radius:10px;letter-spacing:.4px}
+  .db{flex:1;padding:2px 12px 10px;display:flex;flex-direction:column;gap:8px}
+
+  /* cliente (carpetas = primario, número en amarillo) */
+  .cl{display:flex;flex-direction:column;gap:1px}
+  .cl-main{display:flex;align-items:baseline;gap:8px}
+  .cl-c{font-size:14px;font-weight:700;color:var(--ink);letter-spacing:.3px}
+  .cl-r{margin-left:auto;display:flex;align-items:baseline;gap:4px}
+  .cl-r .v{font-size:26px;font-weight:700;line-height:1;color:var(--accent);font-variant-numeric:tabular-nums}
+  .cl-r .k{font-size:10px;color:var(--muted);font-weight:500;text-transform:uppercase}
+  .cl.over .cl-r .v{color:var(--warn)}
+  .cl-sub{font-size:11px;color:var(--muted);margin-top:1px;font-variant-numeric:tabular-nums}
+
+  /* pie del día: SAP + OMS referencia */
+  .dfoot{margin-top:auto;display:flex;align-items:center;gap:8px;padding-top:7px;
+    border-top:1px solid var(--line-soft)}
+  .sap{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:600;
+    padding:2px 8px;border-radius:20px;background:var(--ok-dim);color:var(--ok)}
+  .sap.part{background:rgba(255,214,10,.14);color:var(--accent)}
+  .sap .ck{font-weight:800}
+  .omsref{margin-left:auto;font-size:10px;color:var(--faint);font-weight:500;letter-spacing:.3px}
+  .omsref.diff{color:var(--warn)}
+  .pend{font-size:11px;color:var(--muted);background:var(--surface-3);border:1px dashed var(--line);
+    border-radius:9px;padding:5px 8px;font-weight:500}
+  .pend b{color:var(--accent);font-weight:700}
+  .empty-dot{color:#1f1f24;font-size:15px;text-align:center;margin:auto 0;user-select:none}
+
+  /* ----- tabla totales (invertida) ----- */
+  .wk-tot-row{display:flex;gap:14px;border-top:1px solid var(--line)}
+  .wk-tot-row .wk-tot{flex:0 0 50%;border-top:none}
+  .wk-tot-row .wk-tot-side{flex:0 0 calc(50% - 14px);margin:15px 18px 18px 0;
+    display:flex;align-items:center;justify-content:center}
+  .wk-tot{padding:15px 18px 18px;border-top:1px solid var(--line);background:var(--surface-2)}
+  .wk-tot-head{display:flex;align-items:center;gap:10px;margin-bottom:11px}
+  .wk-tot-head h3{margin:0;font-size:11.5px;font-weight:700;text-transform:uppercase;
+    letter-spacing:.8px;color:var(--muted)}
+  .seg{margin-left:auto;display:inline-flex;background:var(--bg);border:1px solid var(--line);
+    border-radius:10px;padding:3px;gap:2px}
+  .seg button{border:none;background:transparent;cursor:pointer;font-size:11px;font-weight:600;
+    color:var(--muted);padding:5px 12px;border-radius:7px;font-family:inherit}
+  .seg button.on{background:var(--accent);color:var(--on-accent)}
+  table.tot{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
+  table.tot th,table.tot td{padding:9px 8px;text-align:right;font-variant-numeric:tabular-nums;
+    border-right:1px solid var(--grid)}
+  table.tot th:last-child,table.tot td:last-child{border-right:none}
+  table.tot thead th{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--faint);
+    font-weight:600;border-bottom:1px solid var(--grid)}
+  table.tot thead th:first-child{text-align:left}
+  table.tot td:first-child,table.tot th:first-child{text-align:left;width:96px}
+  table.tot tbody td{border-bottom:1px solid var(--grid)}
+  table.tot .src{font-weight:700;font-size:12px;letter-spacing:.3px}
+  table.tot tr.r-car td{background:var(--accent-dim)}
+  table.tot tr.r-car .src{color:var(--accent)}
+  table.tot tr.r-car .src::before{content:"";display:inline-block;width:8px;height:8px;border-radius:2px;
+    background:var(--accent);margin-right:7px;vertical-align:1px}
+  table.tot tr.r-sap .src{color:var(--ok)}
+  table.tot tr.r-oms td{color:var(--muted)}
+  table.tot tr.r-oms .src{color:var(--faint)}
+  table.tot td.tot-col,table.tot th.tot-col{font-weight:700;color:var(--ink);border-left:1px solid var(--grid)}
+  table.tot td.zero{color:#2a2a30}
+
+  /* ---------------- Drawer ---------------- */
+  .scrim{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:50;backdrop-filter:blur(2px)}
+  .drawer{position:fixed;top:0;right:0;height:100vh;width:min(900px,97vw);background:var(--bg);
+    z-index:51;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;
+    transform:translateX(100%);transition:transform .24s cubic-bezier(.4,0,.2,1);border-left:1px solid var(--line)}
+  .drawer.open{transform:none}
+  .dr-head{padding:17px 22px;background:var(--surface);border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:12px}
+  .dr-head h2{margin:0;font-size:16px;font-weight:600;text-transform:capitalize}
+  .dr-head .x{margin-left:auto;border:1px solid var(--line);background:var(--surface-2);
+    width:36px;height:36px;border-radius:10px;cursor:pointer;font-size:16px;color:var(--muted)}
+  .dr-head .x:hover{background:var(--surface-3);color:var(--ink)}
+  .tabs{display:flex;gap:8px;padding:13px 22px 0;background:var(--surface)}
+  .tab{border:1px solid var(--line);border-bottom:none;background:var(--surface-2);cursor:pointer;
+    padding:9px 17px;border-radius:11px 11px 0 0;font-weight:600;font-size:12.5px;color:var(--muted);
+    font-family:inherit}
+  .tab.on.car{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+  .tab.on.sap{background:var(--ok);border-color:var(--ok);color:var(--on-accent)}
+  .tab.on.oms{background:var(--surface-3);border-color:var(--line);color:var(--ink)}
+  .dr-body{flex:1;overflow:auto;padding:20px 22px 60px}
+  .cli-block{background:var(--surface);border:1px solid var(--line);border-radius:14px;
+    margin-bottom:15px;overflow:hidden}
+  .cli-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 17px;
+    border-bottom:1px solid var(--line);background:var(--surface-2)}
+  .cli-name{font-weight:700;font-size:16px;display:flex;align-items:center;gap:9px}
+  .cli-name::before{content:"";width:9px;height:9px;border-radius:2px;background:var(--accent)}
+  .cli-mini{font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .kc{display:flex;gap:10px;margin-left:auto;flex-wrap:wrap}
+  .fld{display:flex;flex-direction:column;gap:3px}
+  .fld label{font-size:9px;font-weight:700;letter-spacing:.6px;color:var(--faint);text-transform:uppercase}
+  .fld input{border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:12px;width:150px;
+    color:var(--ink);background:var(--surface-2);font-family:inherit}
+  .fld input:focus,.inp-mini:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim)}
+  .suc{padding:11px 17px 15px}
+  .suc-h{font-size:13.5px;font-weight:600;margin:7px 0 9px;display:flex;align-items:center;gap:9px;color:var(--ink)}
+  .suc-h .pill{font-size:10px;font-weight:600;color:var(--muted);background:var(--surface-3);
+    border:1px solid var(--line);padding:2px 9px;border-radius:20px}
+  .manif-lbl{font-size:11px;color:var(--accent);font-weight:700;margin:11px 0 6px;text-transform:uppercase;letter-spacing:.4px}
+  table.ram{width:100%;border-collapse:collapse;font-size:12px;background:var(--surface)}
+  table.ram th,table.ram td{padding:8px 10px;border-top:1px solid var(--line-soft);text-align:left;vertical-align:top}
+  table.ram thead th{background:var(--surface-2);font-size:10px;text-transform:uppercase;color:var(--faint);
+    letter-spacing:.4px;font-weight:600}
+  table.ram td.num{text-align:right;font-variant-numeric:tabular-nums}
+  .rid{font-weight:700;color:var(--accent)}
+  .est{font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px}
+  .est.CARGADA{background:var(--ok-dim);color:var(--ok)} .est.ERROR{background:var(--warn-dim);color:var(--warn)}
+  .est.PEND{background:rgba(255,214,10,.14);color:var(--accent)}
+  .nota{font-size:10.5px;color:var(--accent);font-weight:600;font-variant-numeric:tabular-nums}
+  .inp-mini{border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:11.5px;width:104px;
+    color:var(--ink);background:var(--surface-2);font-family:inherit}
+  .arts-btn{border:1px solid var(--line);background:var(--surface-2);border-radius:7px;padding:4px 9px;
+    cursor:pointer;font-size:11px;color:var(--muted);font-family:inherit}
+  .arts-btn:hover{background:var(--surface-3);color:var(--ink)}
+  table.arts{width:100%;border-collapse:collapse;font-size:11px;margin:4px 0;background:var(--surface-2)}
+  table.arts th,table.arts td{padding:5px 9px;border-top:1px solid var(--line-soft)}
+  table.arts th{color:var(--faint);text-transform:uppercase;font-size:9.5px;letter-spacing:.3px;font-weight:600;text-align:left}
+  table.arts td.num{text-align:right;font-variant-numeric:tabular-nums}
+  .empty-msg{color:var(--muted);text-align:center;padding:50px 10px;font-size:13px}
+
+  /* toast */
+  #toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:80;
+    display:flex;flex-direction:column;gap:8px;align-items:center}
+  .toast{background:var(--surface-3);color:var(--ink);padding:12px 18px;border-radius:11px;font-size:13px;
+    box-shadow:var(--shadow-lg);border:1px solid var(--line);opacity:0;transform:translateY(8px);
+    transition:.2s;max-width:90vw}
+  .toast.show{opacity:1;transform:none}
+  .toast.ok{border-color:var(--ok);color:var(--ok)} .toast.err{border-color:var(--warn);color:var(--warn)}
+
+  @media (max-width:1080px){
+    .grid{grid-template-columns:repeat(7,minmax(140px,1fr));overflow-x:auto}
+  }
+  @media print{
+    .topbar .controls,.scrim,.drawer,#toast{display:none !important}
+    .week{break-inside:avoid}
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-in">
+    <div class="brand">
+      <div class="logo">CP</div>
+      <div>
+        <h1>Monitor de Planificación de Picking</h1>
+        <p>Centralizado · Castaño Panaderías — <span class="amar">Supply Chain</span></p>
+      </div>
+    </div>
+    <div class="controls">
+      <div class="wksel" id="wksel">
+        <button data-wk="0" class="on">Sem Actual</button>
+        <button data-wk="1">Próx Sem</button>
+      </div>
+      <div class="cap" title="Capacidad objetivo de ramplas por día en el CD">
+        <span>Capacidad / día</span>
+        <input id="cap" type="number" min="1" step="1" value="22">
+      </div>
+      
+      <div class="pubinfo">Publicado: <b id="pub-ts">—</b></div>
+      
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="weeks" id="weeks"></div>
+</main>
+
+<div id="scrim" class="scrim hidden"></div>
+<aside id="drawer" class="drawer" aria-hidden="true">
+  <div class="dr-head">
+    <h2 id="dr-title">Detalle</h2>
+    <button class="x" id="dr-close">✕</button>
+  </div>
+  <div class="tabs" id="dr-tabs"></div>
+  <div class="dr-body" id="dr-body"></div>
+</aside>
+
+<div id="toast"></div>
+
+<script>
+// true en la versión publicada (GitHub Pages): lee data.json y es de solo lectura
+const STATIC_MODE = true;
+const SRC = ['oms','carpetas','sap'];
+const SRC_LABEL = {oms:'OMS', carpetas:'Carpetas', sap:'SAP'};
+const SRC_CLS   = {oms:'oms', carpetas:'car', sap:'sap'};
+const ORDEN_CLI = ['WM','CENCO','SMU','TOTTUS','RIPLEY','ALVI','OTROS'];
+const COLS_FIJAS = ['WM','CENCO','SMU','TOTTUS'];   // columnas siempre presentes en el resumen semanal
+const METRICAS = {pallets:'Pallets', ramplas:'Ramplas', unidades:'Unidades'};
+
+let STATE = {data:null, drawer:{iso:null, src:'carpetas'}, metric:'pallets', weekIdx:0};
+
+const $ = s => document.querySelector(s);
+const fmt = n => (n==null||isNaN(n)) ? '0' : Math.round(n).toLocaleString('es-CL');
+const cap = () => Math.max(1, parseInt($('#cap').value)||22);
+
+function fmtTs(iso){
+  if(!iso) return 'sin datos';
+  try{ const d=new Date(iso);
+    return d.toLocaleDateString('es-CL',{day:'2-digit',month:'2-digit'})+' '+
+           d.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
+  }catch(e){ return '—'; }
+}
+function dayData(src, iso){
+  const snap = STATE.data[src];
+  return (snap && snap.dias && snap.dias[iso]) ? snap.dias[iso] : null;
+}
+// OCs de un día (recorre la estructura anidada de manifiestos/ramplas)
+function _ocsDe(d){
+  const s=new Set();
+  if(!d) return s;
+  Object.values(d.clientes||{}).forEach(c=>(c.sucursales||[]).forEach(su=>
+    (su.manifiestos||[]).forEach(mf=>(mf.ramplas||[]).forEach(r=>
+      (r.ocs||[]).forEach(oc=>{const k=String(oc).trim(); if(k) s.add(k);})))));
+  return s;
+}
+function dayOCs(src, iso){ return _ocsDe(dayData(src, iso)); }
+// Cuenta ramplas OMS de un día cuya OC (alguna de ellas) está en pendSet (no planificada aún)
+function pendRamplas(iso, pendSet){
+  const d = dayData('oms', iso);
+  let ramplas=0;
+  if(d) Object.values(d.clientes||{}).forEach(c=>(c.sucursales||[]).forEach(su=>
+    (su.manifiestos||[]).forEach(mf=>(mf.ramplas||[]).forEach(r=>{
+      if((r.ocs||[]).some(oc=>pendSet.has(String(oc).trim()))) ramplas++;
+    }))));
+  return ramplas;
+}
+// OCs ya planificadas (carpetas ∪ sap) sobre todos los días
+function plannedOCs(){
+  const s=new Set();
+  ['carpetas','sap'].forEach(src=>{
+    const snap=STATE.data[src];
+    if(snap&&snap.dias) Object.keys(snap.dias).forEach(iso=>dayOCs(src,iso).forEach(oc=>s.add(oc)));
+  });
+  return s;
+}
+function toast(msg, kind){
+  const t=document.createElement('div'); t.className='toast '+(kind||''); t.textContent=msg;
+  $('#toast').appendChild(t); requestAnimationFrame(()=>t.classList.add('show'));
+  setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),250);},3800);
+}
+
+async function loadData(){
+  const r = await fetch(STATIC_MODE ? 'data.json' : '/api/data'); STATE.data = await r.json();
+  if(STATE.data.config && STATE.data.config.capacidad_dia) $('#cap').value = STATE.data.config.capacidad_dia;
+  if(STATIC_MODE && $('#pub-ts')) $('#pub-ts').textContent = fmtTs(STATE.data.publicado);
+  if(!STATIC_MODE && $('#ts-pub') && STATE.data.publicacion && STATE.data.publicacion.publicado)
+    $('#ts-pub').textContent = fmtTs(STATE.data.publicacion.publicado);
+  render();
+}
+
+// ---------------- Render principal ----------------
+function render(){
+  const meta = STATE.data.meta;
+  STATE._planned = plannedOCs();   // OCs ya planificadas (carpetas ∪ sap), una vez por render
+  SRC.forEach(s => { const el=$('#ts-'+s); if(el) el.textContent = fmtTs((STATE.data[s]||{}).generado); });
+  if(STATE.weekIdx >= meta.semanas.length) STATE.weekIdx = 0;
+  document.querySelectorAll('#wksel button').forEach(b=>
+    b.classList.toggle('on', (+b.dataset.wk)===STATE.weekIdx));
+  const cont = $('#weeks'); cont.innerHTML='';
+  // Solo la semana seleccionada (actual o próxima)
+  const wk = meta.semanas[STATE.weekIdx];
+  cont.appendChild(renderWeek(wk, STATE.weekIdx===0, meta));
+  // Espacio inferior reservado (futuro: seguimiento SAP)
+  const ph = document.createElement('div');
+  ph.className = 'placeholder';
+  ph.textContent = 'Espacio reservado — próximamente: seguimiento SAP';
+  cont.appendChild(ph);
+}
+
+function renderWeek(wk, esActual, meta){
+  const wrap=document.createElement('section'); wrap.className='week';
+  const di=new Date(wk.inicio+'T00:00'), df=new Date(wk.fin+'T00:00');
+  const rango=di.toLocaleDateString('es-CL',{day:'2-digit',month:'short'})+' – '+
+              df.toLocaleDateString('es-CL',{day:'2-digit',month:'short'});
+  const car=weekTotals('carpetas', wk.dias);
+
+  const head=document.createElement('div'); head.className='week-head';
+  head.innerHTML =
+    `<div class="week-title">Semana <span class="num">${wk.num}</span> · ${rango}`+
+      (esActual?` <span class="badge-cur">ACTUAL</span>`:``)+`</div>`+
+    `<div class="week-kpi"><div class="b"><span class="hl">${fmt(car.ramplas)}</span> ramplas · `+
+      `<span class="hl">${fmt(car.pallets)}</span> pal</div>`+
+      `<div class="s">redistribuido · ${fmt(car.unidades)} unidades</div></div>`;
+  wrap.appendChild(head);
+
+  const grid=document.createElement('div'); grid.className='grid';
+  wk.dias.forEach((iso,dow)=>grid.appendChild(renderDay(iso,dow,meta)));
+  wrap.appendChild(grid);
+
+  const totRow = document.createElement('div'); totRow.className = 'wk-tot-row';
+  totRow.appendChild(renderWeekTotals(wk));
+  const ph2 = document.createElement('div'); ph2.className = 'placeholder wk-tot-side';
+  ph2.textContent = 'Próximamente';
+  totRow.appendChild(ph2);
+  wrap.appendChild(totRow);
+  return wrap;
+}
+
+function renderDay(iso, dow, meta){
+  const car=dayData('carpetas',iso), oms=dayData('oms',iso), sap=dayData('sap',iso);
+  const carRam = car?car.totales.ramplas:0;
+  const omsRam = oms?oms.totales.ramplas:0;
+  const sapRam = sap?sap.totales.ramplas:0;
+  const esHoy = (iso===meta.hoy), finde=(dow>=5), tiene=(carRam>0||omsRam>0||sapRam>0);
+  // OCs que OMS tiene este día y que NO están planificadas (carpetas ∪ sap) en ningún día
+  const pend = [...dayOCs('oms', iso)].filter(oc => !(STATE._planned||new Set()).has(oc));
+
+  const d=document.createElement('div');
+  d.className='day'+(esHoy?' today':'')+(finde?' weekend':'')+(tiene?' has':'');
+  const fd=new Date(iso+'T00:00');
+  d.innerHTML=`<div class="dh"><span class="d">${fd.getDate()}</span>`+
+    `<span class="n">${(meta.dias_nombres[dow]||'').slice(0,3)}</span>`+
+    (esHoy?`<span class="today-tag">HOY</span>`:``)+`</div>`;
+
+  const body=document.createElement('div'); body.className='db';
+
+  if(!tiene){
+    body.innerHTML=`<div class="empty-dot">·</div>`;
+    d.appendChild(body); return d;
+  }
+
+  if(carRam>0){
+    ORDEN_CLI.filter(c=>car.clientes[c]).forEach(c=>{
+      const cc=car.clientes[c]; const over = cc.ramplas>cap();
+      body.innerHTML += `<div class="cl${over?' over':''}">`+
+        `<div class="cl-main"><span class="cl-c">${c}</span>`+
+          `<span class="cl-r"><span class="v">${fmt(cc.ramplas)}</span><span class="k">ram</span></span></div>`+
+        `<div class="cl-sub">${fmt(cc.pallets)} pal · ${fmt(cc.unidades)} un</div></div>`;
+    });
+  } else if(omsRam>0){
+    if(pend.length>0){
+      const pendRam = pendRamplas(iso, new Set(pend));
+      body.innerHTML += `<div class="pend"><b>OMS</b> ${fmt(pendRam)} ramplas · sin redistribuir</div>`;
+    } else {
+      // Toda la demanda OMS de este día ya quedó planificada en otro día → celda vacía
+      body.innerHTML += `<div class="empty-dot">·</div>`;
+    }
+  }
+
+  const foot=document.createElement('div'); foot.className='dfoot';
+  let footHtml='';
+  if(carRam>0 && sapRam>0){
+    const full = sapRam>=carRam;
+    footHtml += `<span class="sap${full?'':' part'}"><span class="ck">✓</span>${fmt(sapRam)}/${fmt(carRam)} SAP</span>`;
+  } else if(sapRam>0){
+    footHtml += `<span class="sap"><span class="ck">✓</span>${fmt(sapRam)} SAP</span>`;
+  }
+  if(carRam>0){
+    const diff = (pend.length>0);   // rojo solo si hay demanda OMS de este día sin planificar
+    footHtml += `<span class="omsref${diff?' diff':''}" title="Referencia OMS">OMS ${fmt(omsRam)}</span>`;
+  }
+  if(footHtml){ foot.innerHTML=footHtml; body.appendChild(foot); }
+
+  d.appendChild(body);
+  d.addEventListener('click', ()=>openDrawer(iso, carRam>0?'carpetas':(sapRam>0?'sap':'oms')));
+  return d;
+}
+
+// ---------------- Totales ----------------
+function weekTotals(src, dias){
+  const a={ramplas:0,pallets:0,unidades:0};
+  dias.forEach(iso=>{const dd=dayData(src,iso); if(dd&&dd.totales){
+    a.ramplas+=dd.totales.ramplas;a.pallets+=dd.totales.pallets;a.unidades+=dd.totales.unidades;}});
+  return a;
+}
+function weekClienteTotals(src, dias){
+  const m={};
+  dias.forEach(iso=>{const dd=dayData(src,iso); if(!dd||!dd.clientes)return;
+    for(const [c,v] of Object.entries(dd.clientes)){
+      const a=m[c]||(m[c]={ramplas:0,pallets:0,unidades:0});
+      a.ramplas+=v.ramplas;a.pallets+=v.pallets;a.unidades+=v.unidades;}});
+  return m;
+}
+function renderWeekTotals(wk){
+  const box=document.createElement('div'); box.className='wk-tot';
+  const per={}; SRC.forEach(s=>per[s]=weekClienteTotals(s, wk.dias));
+  // Columnas fijas (WM, CENCO, SMU, TOTTUS) siempre presentes + extras con datos
+  const extras = ORDEN_CLI.filter(c=>!COLS_FIJAS.includes(c) && SRC.some(s=>per[s][c]));
+  const clientes = COLS_FIJAS.concat(extras);
+  const met=STATE.metric;
+  const filas=[['carpetas','r-car','Carpetas'],['sap','r-sap','SAP'],['oms','r-oms','OMS']];
+  const seg = Object.keys(METRICAS).map(k=>
+    `<button class="${k===met?'on':''}" data-met="${k}">${METRICAS[k]}</button>`).join('');
+  let thead = `<tr><th>Fuente</th>`+clientes.map(c=>`<th>${c}</th>`).join('')+`<th class="tot-col">Total</th></tr>`;
+  let body='';
+  filas.forEach(([s,cls,lbl])=>{
+    let tot=0;
+    let cells=clientes.map(c=>{const v=(per[s][c]||{})[met]||0; tot+=v;
+      return `<td class="${v?'':'zero'}">${v?fmt(v):'·'}</td>`;}).join('');
+    body+=`<tr class="${cls}"><td class="src">${lbl}</td>${cells}<td class="tot-col">${tot?fmt(tot):'·'}</td></tr>`;
+  });
+  box.innerHTML =
+    `<div class="wk-tot-head"><h3>Totales por cliente — ${METRICAS[met]}</h3><div class="seg">${seg}</div></div>`+
+    `<table class="tot"><thead>${thead}</thead><tbody>${body}</tbody></table>`;
+  box.querySelectorAll('.seg button').forEach(b=>b.onclick=()=>{STATE.metric=b.dataset.met;render();});
+  return box;
+}
+
+// ---------------- Drawer ----------------
+function openDrawer(iso, src){
+  STATE.drawer={iso, src:src||'carpetas'};
+  $('#scrim').classList.remove('hidden'); $('#drawer').classList.add('open');
+  $('#drawer').setAttribute('aria-hidden','false'); renderDrawer();
+}
+function closeDrawer(){
+  $('#drawer').classList.remove('open'); $('#scrim').classList.add('hidden');
+  $('#drawer').setAttribute('aria-hidden','true');
+}
+function renderDrawer(){
+  const {iso,src}=STATE.drawer; const fd=new Date(iso+'T00:00');
+  $('#dr-title').textContent='Detalle · '+fd.toLocaleDateString('es-CL',{weekday:'long',day:'2-digit',month:'long'});
+  const ord=['carpetas','sap','oms'];
+  $('#dr-tabs').innerHTML = ord.map(s=>{
+    const dd=dayData(s,iso); const n=dd?dd.totales.ramplas:0;
+    return `<button class="tab ${SRC_CLS[s]} ${s===src?'on':''}" data-tab="${s}">${SRC_LABEL[s]} (${n})</button>`;
+  }).join('');
+  document.querySelectorAll('#dr-tabs .tab').forEach(b=>b.onclick=()=>{STATE.drawer.src=b.dataset.tab;renderDrawer();});
+  $('#dr-body').innerHTML = renderDrawerBody(iso, src);
+  bindDrawerInputs();
+}
+function renderDrawerBody(iso, src){
+  const dd=dayData(src,iso);
+  if(!dd||!dd.clientes||!Object.keys(dd.clientes).length)
+    return `<div class="empty-msg">Sin pedidos en <b>${SRC_LABEL[src]}</b> para este día.</div>`;
+  const obs=STATE.data.observaciones||{clientes:{},ramplas:{}};
+  let html='';
+  ORDEN_CLI.filter(c=>dd.clientes[c]).forEach(c=>{
+    const cli=dd.clientes[c]; const co=(obs.clientes&&obs.clientes[c])||{};
+    html+=`<div class="cli-block"><div class="cli-head">`+
+      `<div class="cli-name">${c}</div>`+
+      `<div class="cli-mini">${fmt(cli.ramplas)} ramplas · ${fmt(cli.pallets)} pallets · ${fmt(cli.unidades)} un</div>`+
+      `<div class="kc">`+
+        fld('KAM','KAM',c,co.KAM||'')+fld('Mail KAM','KAM_mail',c,co.KAM_mail||'',true)+
+        fld('CPFR','CPFR',c,co.CPFR||'')+fld('Mail CPFR','CPFR_mail',c,co.CPFR_mail||'',true)+
+      `</div></div>`;
+    (cli.sucursales||[]).forEach(su=>{
+      html+=`<div class="suc"><div class="suc-h">${su.sala||su.sucursal}`+
+        `<span class="pill">Suc ${su.sucursal}</span>`+(su.ruta?`<span class="pill">Ruta ${su.ruta}</span>`:``)+`</div>`;
+      (su.manifiestos||[]).forEach(mf=>{
+        if(mf.sufijo) html+=`<div class="manif-lbl">Manifiesto ${mf.sufijo}</div>`;
+        html+=renderRamplas(mf.ramplas||[], src, obs);
+      });
+      html+=`</div>`;
+    });
+    html+=`</div>`;
+  });
+  return html;
+}
+function fld(label, field, key, val, wide){
+  return `<div class="fld"><label>${label}</label>`+
+    `<input data-obs="cliente" data-field="${field}" data-key="${key}" value="${esc(val)}"${wide?' style="width:200px"':''}></div>`;
+}
+function renderRamplas(ramplas, src, obs){
+  if(!ramplas.length) return '';
+  const isSap=(src==='sap');
+  let head=`<tr><th>Ram</th><th>Cita</th><th>Pallets</th><th>Unidades</th><th>OC</th>`;
+  if(isSap) head+=`<th>Estado / Nota SAP</th>`;
+  head+=`<th>Patente</th><th>Chofer</th><th></th></tr>`;
+  const rows=ramplas.map(r=>{
+    const ro=(obs.ramplas&&obs.ramplas[r.key])||{};
+    let estCell='';
+    if(isSap){
+      const cls=r.estado==='CARGADA'?'CARGADA':(r.estado==='ERROR'?'ERROR':'PEND');
+      const notas=(r.notas_sap||[]).map(n=>`<span class="nota">${n}</span>`).join(' ');
+      estCell=`<td><span class="est ${cls}">${r.estado||'—'}</span> ${notas}</td>`;
+    }
+    const arts=(r.articulos&&r.articulos.length)
+      ? `<button class="arts-btn" data-arts="${src}-${r.key}">▸ ${r.articulos.length} art.</button>`:'';
+    return `<tr><td class="rid">${r.id}</td><td>${esc(r.cita||'')}</td>`+
+      `<td class="num">${fmt(r.pallets)}</td><td class="num">${fmt(r.unidades)}</td>`+
+      `<td>${(r.ocs||[]).join('<br>')}</td>`+estCell+
+      `<td><input class="inp-mini" data-obs="rampla" data-field="patente" data-key="${r.key}" value="${esc(ro.patente||'')}" placeholder="—"></td>`+
+      `<td><input class="inp-mini" data-obs="rampla" data-field="chofer" data-key="${r.key}" value="${esc(ro.chofer||'')}" placeholder="—"></td>`+
+      `<td>${arts}</td></tr>`+
+      `<tr class="arts-row hidden" id="arts-${src}-${cssId(r.key)}"><td colspan="${isSap?9:8}">${renderArts(r.articulos)}</td></tr>`;
+  }).join('');
+  return `<table class="ram"><thead>${head}</thead><tbody>${rows}</tbody></table>`;
+}
+function renderArts(arts){
+  if(!arts||!arts.length) return '';
+  const rows=arts.map(a=>`<tr><td>${a.material}</td><td>${esc(a.desc||'')}</td>`+
+    `<td class="num">${fmt(a.unidades)}</td><td class="num">${fmt(a.cajas)}</td>`+
+    `<td class="num">${fmt(a.pallets_uso)}</td><td>${a.oc||''}</td></tr>`).join('');
+  return `<table class="arts"><thead><tr><th>Material</th><th>Descripción</th><th>Un</th><th>Cajas</th><th>Pal</th><th>OC</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+function bindDrawerInputs(){
+  document.querySelectorAll('[data-arts]').forEach(b=>b.onclick=()=>{
+    const row=document.getElementById('arts-'+cssId(b.dataset.arts));
+    if(row){row.classList.toggle('hidden');
+      b.textContent=(row.classList.contains('hidden')?'▸ ':'▾ ')+b.textContent.slice(2);}
+  });
+  document.querySelectorAll('[data-obs]').forEach(inp=>{
+    if(STATIC_MODE){ inp.disabled=true; inp.title='Solo lectura (versión publicada)'; return; }
+    const save=()=>saveObs(inp.dataset.obs,inp.dataset.key,inp.dataset.field,inp.value);
+    inp.addEventListener('change',save);
+    inp.addEventListener('keydown',e=>{if(e.key==='Enter')inp.blur();});
+  });
+}
+async function saveObs(tipo,key,field,value){
+  const datos={}; datos[field]=value;
+  const bucket=tipo==='cliente'?'clientes':'ramplas';
+  STATE.data.observaciones=STATE.data.observaciones||{clientes:{},ramplas:{}};
+  STATE.data.observaciones[bucket][key]=Object.assign({},STATE.data.observaciones[bucket][key]||{},datos);
+  try{
+    const r=await fetch('/api/observaciones',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({tipo,key,datos})});
+    const j=await r.json(); if(!j.ok) toast('No se pudo guardar.','err');
+  }catch(e){ toast('Error de red al guardar.','err'); }
+}
+
+// ---------------- Botones ----------------
+async function refresh(src, btn){
+  const orig=btn.innerHTML; btn.disabled=true; btn.innerHTML=`<span class="spin"></span>…`;
+  try{
+    const r=await fetch('/api/refresh/'+src,{method:'POST'}); const j=await r.json();
+    if(j.ok){
+      STATE.data[src]=j.snapshot; render();
+      if(STATE.drawer.iso && $('#drawer').classList.contains('open')) renderDrawer();
+      const errs=(j.snapshot.errores||[]).length;
+      toast(`${SRC_LABEL[src]} actualizado.`+(errs?` (${errs} avisos)`:''),'ok');
+    }else toast(`${SRC_LABEL[src]}: ${j.error||'error'}`,'err');
+  }catch(e){ toast(`${SRC_LABEL[src]}: error de red`,'err'); }
+  finally{ btn.disabled=false; btn.innerHTML=orig; }
+}
+async function saveCap(){
+  render();
+  if(STATIC_MODE) return;   // en la versión publicada el cambio es solo visual/local
+  try{ await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({capacidad_dia:cap()})}); }catch(e){}
+}
+
+// Publica el dashboard estático en GitHub Pages (commit + push desde el servidor local)
+async function publicar(btn){
+  const orig=btn.innerHTML; btn.disabled=true; btn.innerHTML=`<span class="spin"></span>Publicando…`;
+  try{
+    const r=await fetch('/api/publicar',{method:'POST'}); const j=await r.json();
+    if(j.ok){
+      if($('#ts-pub')) $('#ts-pub').textContent=fmtTs(j.publicado);
+      try{ await navigator.clipboard.writeText(j.url);
+        toast('Publicado ✓ — link copiado al portapapeles','ok'); }
+      catch(e){ toast('Publicado ✓ — '+j.url,'ok'); }
+    } else toast('Publicar: '+(j.error||'error'),'err');
+  }catch(e){ toast('Publicar: error de red','err'); }
+  finally{ btn.disabled=false; btn.innerHTML=orig; }
+}
+
+// ---------------- Utils ----------------
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+  .replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function cssId(s){return String(s).replace(/[^a-zA-Z0-9_-]/g,'_');}
+
+// ---------------- Init ----------------
+document.querySelectorAll('.rbtn button[data-src]').forEach(b=>b.addEventListener('click',()=>refresh(b.dataset.src,b)));
+const _bp=$('#btn-pub'); if(_bp) _bp.addEventListener('click',()=>publicar(_bp));
+document.querySelectorAll('#wksel button').forEach(b=>b.addEventListener('click',()=>{STATE.weekIdx=+b.dataset.wk;render();}));
+$('#dr-close').addEventListener('click',closeDrawer);
+$('#scrim').addEventListener('click',closeDrawer);
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDrawer();});
+$('#cap').addEventListener('change',saveCap);
+loadData();
+</script>
+</body>
+</html>
